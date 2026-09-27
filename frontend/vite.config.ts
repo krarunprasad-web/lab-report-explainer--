@@ -15,6 +15,6 @@ export default defineConfig({
   },
 
   preview: {
-    allowedHosts: ["portal-production-b3d5.up.railway.app"],
+    allowedHosts: ["lab-report-explainer-production.up.railway.app"],
   },
 });
