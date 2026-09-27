@@ -9,6 +9,7 @@ const RESEND_COOLDOWN = 60;
 export function Verify() {
   const navigate = useNavigate();
   const email = useAuthStore((s) => s.email);
+  const pendingUserId = useAuthStore((s) => s.pendingUserId);
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export function Verify() {
     setBusy(true);
     setError(null);
     try {
-      const result = await verifyOtp(code);
+      const result = await verifyOtp(code, pendingUserId ?? undefined);
       if (!result.ok) {
         setError(result.message ?? "That code isn't right. Try again.");
         return;

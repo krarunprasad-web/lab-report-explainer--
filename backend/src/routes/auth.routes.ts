@@ -50,7 +50,7 @@ authRouter.post("/register", asyncHandler(async (req, res) => {
 
   const { devCode } = await issueOtp(user.id, email);
   setPendingCookie(res, user.id);
-  res.json({ ok: true, needsVerify: true, devCode: config.devExposeOtp ? devCode : undefined });
+  res.json({ ok: true, needsVerify: true, userId: user.id, devCode: config.devExposeOtp ? devCode : undefined });
 }));
 
 authRouter.post("/login", asyncHandler(async (req, res) => {
@@ -64,7 +64,7 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
 
   const { devCode } = await issueOtp(user.id, email);
   setPendingCookie(res, user.id);
-  res.json({ ok: true, needsVerify: true, devCode: config.devExposeOtp ? devCode : undefined });
+  res.json({ ok: true, needsVerify: true, userId: user.id, devCode: config.devExposeOtp ? devCode : undefined });
 }));
 
 authRouter.post("/google", asyncHandler(async (req, res) => {
@@ -84,15 +84,16 @@ authRouter.post("/google", asyncHandler(async (req, res) => {
     });
     // Google already verifies the email, so this path skips OTP entirely.
     await establishSession(res, user.id);
-    res.json({ ok: true, needsVerify: false });
+    res.json({ ok: true, needsVerify: false, userId: user.id });
   } catch (err) {
     res.status(401).json({ ok: false, message: err instanceof Error ? err.message : "Google sign-in failed." });
   }
 }));
 
 authRouter.post("/verify", asyncHandler(async (req, res) => {
-  const userId = req.cookies?.[PENDING_COOKIE] as string | undefined;
-  const { code } = req.body as { code?: string };
+  const userIdFromCookie = req.cookies?.[PENDING_COOKIE] as string | undefined;
+  const { userId: requestedUserId, code } = req.body as { userId?: string; code?: string };
+  const userId = userIdFromCookie ?? requestedUserId;
   if (!userId || !code) return res.status(400).json({ ok: false, message: "Start sign-in again." });
 
   const result = await verifyOtpCode(userId, code);
