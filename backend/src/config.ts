@@ -29,14 +29,16 @@ export const config = {
 
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || undefined,
 
-  smtp: {
-    host: process.env.SMTP_HOST || undefined,
-    port: Number(process.env.SMTP_PORT ?? 587),
-    secure: bool(process.env.SMTP_SECURE, false),
-    user: process.env.SMTP_USER || undefined,
-    pass: process.env.SMTP_PASS || undefined,
-    from: process.env.SMTP_FROM ?? "Lab Explainer <no-reply@example.com>",
-  },
+smtp: {
+  host: process.env.SMTP_HOST || undefined,
+  port: Number(process.env.SMTP_PORT ?? 465),
+  secure: bool(process.env.SMTP_SECURE, true),
+  user: process.env.SMTP_USER || undefined,
+  pass: process.env.SMTP_PASS || undefined,
+  from:
+    process.env.SMTP_FROM ||
+    `Lab Report Explainer <${process.env.SMTP_USER || "no-reply@example.com"}>`,
+},
   devExposeOtp: bool(process.env.DEV_EXPOSE_OTP, true),
 
   ipGeoProvider: process.env.IPGEO_PROVIDER ?? "ip-api",
