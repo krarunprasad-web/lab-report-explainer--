@@ -11,15 +11,15 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.access_token as string | undefined;
   if (!token) return res.status(401).json({ message: "Not signed in." });
 
   const payload = verifyAccessToken(token);
   if (!payload) return res.status(401).json({ message: "Session expired." });
 
-  if (!touchSession(payload.sessionId)) {
-    return res.status(401).json({ message: "Session expired." });
+if (!(await touchSession(payload.sessionId))) {
+      return res.status(401).json({ message: "Session expired." });
   }
 
   req.auth = payload;

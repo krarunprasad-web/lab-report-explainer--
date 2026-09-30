@@ -97,7 +97,7 @@ async function handleUpload(req: Request, res: Response, files: Express.Multer.F
     values: classified,
     walkthroughKeys,
   };
-  setReport(req.auth!.sessionId, report);
+  await setReport(req.auth!.sessionId, report);
 
   res.json({
     status: extraction.extractionConfidence === "low" ? "partial" : "ready",
@@ -109,7 +109,7 @@ async function handleUpload(req: Request, res: Response, files: Express.Multer.F
 }
 
 reportRouter.get("/pdf", requireAuth, async (req, res) => {
-  const report = getReport(req.auth!.sessionId);
+  const report = await getReport(req.auth!.sessionId);
   if (!report) return res.status(404).json({ message: "No report in this session." });
 
   try {

@@ -18,6 +18,8 @@ model User {
   otpCodes           OtpCode[]
   ratings            Rating[]
   refreshTokens      RefreshToken[]
+  reportSessions     ReportSession[]
+
 }
 
 model OtpCode {
@@ -51,4 +53,18 @@ model Rating {
   meta      String?
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id])
+}
+
+model ReportSession {
+  id             String   @id @default(uuid())
+  userId         String
+  report         Json?
+  lastActivityAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([lastActivityAt])
 }

@@ -10,7 +10,7 @@ ratingRouter.post("/", requireAuth, async (req, res) => {
   const { score, comment } = req.body as { score?: number; comment?: string };
   if (!score || score < 1 || score > 5) return res.status(400).json({ ok: false, message: "Rating must be 1-5." });
 
-  const report = getReport(req.auth!.sessionId);
+  const report = await getReport(req.auth!.sessionId);
   const meta = report
     ? JSON.stringify({
         valuesCount: report.values.length,

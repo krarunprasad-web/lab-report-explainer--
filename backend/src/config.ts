@@ -23,9 +23,13 @@ export const config = {
   refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET ?? "dev-refresh-secret-change-me",
   dataEncKey: process.env.DATA_ENC_KEY ?? "dev-data-enc-key-32-bytes-change",
 
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
-  mockAi: bool(process.env.MOCK_AI, true),
-  claudeModel: process.env.CLAUDE_MODEL ?? "claude-sonnet-5",
+lovableAiUrl:
+  process.env.LOVABLE_AI_URL ??
+  "https://project--5f1d4382-4872-497c-aca2-2c3f8d8dc2ad.lovable.app/api/public/railway-ai",
+
+lovableAiSharedSecret: process.env.RAILWAY_AI_SHARED_SECRET || undefined,
+
+mockAi: bool(process.env.MOCK_AI, false),
 
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || undefined,
 

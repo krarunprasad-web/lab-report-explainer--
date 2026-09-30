@@ -19,7 +19,7 @@ function setPendingCookie(res: import("express").Response, userId: string) {
 }
 
 async function establishSession(res: import("express").Response, userId: string) {
-  const sessionId = createSession(userId);
+  const sessionId = await createSession(userId);
   const accessToken = signAccessToken({ userId, sessionId });
   const refreshToken = signRefreshToken(userId);
 
@@ -125,8 +125,8 @@ authRouter.post("/walkthrough-seen", requireAuth, asyncHandler(async (req, res) 
   res.json({ ok: true });
 }));
 
-authRouter.post("/logout", requireAuth, (req, res) => {
-  clearSession(req.auth!.sessionId);
+authRouter.post("/logout", requireAuth, async(req, res) => {
+  await clearSession(req.auth!.sessionId);
   res.clearCookie("access_token");
   res.clearCookie("refresh_token");
   res.json({ ok: true });

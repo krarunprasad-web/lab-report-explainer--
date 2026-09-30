@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "prisma generate && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/services/pdfExport/templates','dist/services/pdfExport/templates',{recursive:true})\"",    "start": "node dist/index.js",
+    "build": "prisma generate && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/services/pdfExport/templates','dist/services/pdfExport/templates',{recursive:true})\"",
+    "start": "node dist/index.js",
     "lint": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -13,7 +14,6 @@
     "contract:emit": "prisma contract emit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.27.3",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

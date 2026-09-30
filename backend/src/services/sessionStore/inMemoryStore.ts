@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { config } from "../../config.js";
+import { prisma } from "../../db/client.js";
 
 export interface StoredLabValue {
   key: string;
@@ -29,57 +31,127 @@ interface SessionRecord {
   lastActivityAt: number;
 }
 
-// This Map is the entire enforcement mechanism for "the extracted report is
-// never persisted": it is the only place report content is ever held, it
-// lives only in this process's memory, and it is swept on a timer. Nothing
-// in here is ever written to the database.
-const sessions = new Map<string, SessionRecord>();
+/**
+ * Persistent session store backed by PostgreSQL.
+ *
+ * Sessions and extracted reports are stored in PostgreSQL so they
+ * survive browser refreshes, backend restarts, and Railway deployments.
+ */
 
-export function createSession(userId: string): string {
+export async function createSession(userId: string): Promise<string> {
   const sessionId = randomUUID();
-  sessions.set(sessionId, { userId, report: null, lastActivityAt: Date.now() });
+
+  await prisma.reportSession.create({
+    data: {
+      id: sessionId,
+      userId,
+      report: Prisma.JsonNull,
+      lastActivityAt: new Date(),
+    },
+  });
+
   return sessionId;
 }
 
-export function touchSession(sessionId: string): boolean {
-  const s = sessions.get(sessionId);
-  if (!s) return false;
-  s.lastActivityAt = Date.now();
-  return true;
+export async function touchSession(sessionId: string): Promise<boolean> {
+  const result = await prisma.reportSession.updateMany({
+    where: {
+      id: sessionId,
+    },
+    data: {
+      lastActivityAt: new Date(),
+    },
+  });
+
+  return result.count > 0;
 }
 
-export function getSession(sessionId: string): SessionRecord | undefined {
-  return sessions.get(sessionId);
-}
+export async function getSession(
+  sessionId: string,
+): Promise<SessionRecord | undefined> {
+  const session = await prisma.reportSession.findUnique({
+    where: {
+      id: sessionId,
+    },
+  });
 
-export function setReport(sessionId: string, report: SessionReport) {
-  const s = sessions.get(sessionId);
-  if (!s) return;
-  s.report = report;
-  s.lastActivityAt = Date.now();
-}
-
-export function getReport(sessionId: string): SessionReport | null {
-  return sessions.get(sessionId)?.report ?? null;
-}
-
-export function clearSession(sessionId: string) {
-  sessions.delete(sessionId);
-}
-
-export function sweepIdleSessions() {
-  const now = Date.now();
-  for (const [id, record] of sessions) {
-    if (now - record.lastActivityAt > config.idleTimeoutMs) {
-      sessions.delete(id);
-    }
+  if (!session) {
+    return undefined;
   }
+
+  return {
+    userId: session.userId,
+    report: session.report
+      ? (session.report as unknown as SessionReport)
+      : null,
+    lastActivityAt: session.lastActivityAt.getTime(),
+  };
+}
+
+export async function setReport(
+  sessionId: string,
+  report: SessionReport,
+): Promise<void> {
+  await prisma.reportSession.updateMany({
+    where: {
+      id: sessionId,
+    },
+    data: {
+      report: report as unknown as Prisma.InputJsonValue,
+      lastActivityAt: new Date(),
+    },
+  });
+}
+
+export async function getReport(
+  sessionId: string,
+): Promise<SessionReport | null> {
+  const session = await prisma.reportSession.findUnique({
+    where: {
+      id: sessionId,
+    },
+    select: {
+      report: true,
+    },
+  });
+
+  if (!session?.report) {
+    return null;
+  }
+
+  return session.report as unknown as SessionReport;
+}
+
+export async function clearSession(sessionId: string): Promise<void> {
+  await prisma.reportSession.deleteMany({
+    where: {
+      id: sessionId,
+    },
+  });
+}
+
+export async function sweepIdleSessions(): Promise<void> {
+  const cutoff = new Date(Date.now() - config.idleTimeoutMs);
+
+  await prisma.reportSession.deleteMany({
+    where: {
+      lastActivityAt: {
+        lt: cutoff,
+      },
+    },
+  });
 }
 
 let sweepTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startSessionSweeper() {
   if (sweepTimer) return;
-  sweepTimer = setInterval(sweepIdleSessions, 60_000);
+
+  sweepTimer = setInterval(() => {
+    void sweepIdleSessions().catch((error) => {
+      console.error("Failed to sweep idle sessions:", error);
+    });
+  }, 60_000);
+
   sweepTimer.unref?.();
 }

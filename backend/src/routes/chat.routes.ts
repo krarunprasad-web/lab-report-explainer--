@@ -9,7 +9,7 @@ chatRouter.post("/message", requireAuth, async (req, res) => {
   const { message, history } = req.body as { message?: string; history?: ChatTurn[] };
   if (!message?.trim()) return res.status(400).json({ message: "Message is empty." });
 
-  const report = getReport(req.auth!.sessionId);
+  const report = await getReport(req.auth!.sessionId);
   if (!report) return res.status(404).json({ message: "No report in this session yet." });
 
   const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";

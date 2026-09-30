@@ -1,6 +1,5 @@
 import { config } from "../../config.js";
-import { aiEnabled, getClaudeClient } from "./claudeClient.js";
-import { MOCK_RAW_VALUES, MOCK_REPORT_DATE, MOCK_REPORT_LABEL, type RawExtractedValue } from "./mockReportData.js";
+import type { RawExtractedValue } from "./mockReportData.js";
 
 export interface ExtractionResult {
   reportDate: string;
@@ -10,70 +9,211 @@ export interface ExtractionResult {
   unrecognizedText: string[];
 }
 
-const EXTRACT_TOOL = {
-  name: "record_lab_values",
-  description: "Record the structured lab values found in a lab report's raw text.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      reportDate: { type: "string", description: "The report/collection date as printed, or best guess. Empty string if unknown." },
-      reportLabel: { type: "string", description: "A short label for the panel, e.g. 'Complete Hemogram' or 'Blood panel'." },
-      values: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            rawValue: { type: "string" },
-            unit: { type: "string" },
-            refRangeRaw: { type: "string", description: "The reference range exactly as printed, e.g. '12.0 - 15.5' or 'Below 100'." },
-            category: { type: "string", description: "The section/category heading this value appeared under, e.g. 'Lipid Panel'." },
-          },
-          required: ["name", "rawValue", "unit", "refRangeRaw", "category"],
-        },
-      },
-      extractionConfidence: { type: "string", enum: ["high", "partial", "low"] },
-      unrecognizedText: {
-        type: "array",
-        items: { type: "string" },
-        description: "Short notes on any table rows or sections that looked like lab values but couldn't be confidently parsed.",
-      },
-    },
-    required: ["reportDate", "reportLabel", "values", "extractionConfidence", "unrecognizedText"],
-  },
-};
+const SYSTEM_PROMPT = `You extract structured laboratory test results from raw OCR/parsed text of a medical lab report.
 
-const SYSTEM_PROMPT = `You extract structured lab test results from raw OCR/parsed text of a medical lab report. Lab report layouts vary widely (tables, grouped sections, multi-page scans). Extract every distinct test result you can find with its value, unit, and reference range exactly as printed. Do not compute or infer anything — just transcribe. Do not include patient identifying information (name, ID, address) in the output, only test values. If the text contains no recognizable lab values at all, return an empty values array.`;
+Lab report layouts vary widely, including tables, grouped sections, and multi-page scans.
 
-export async function extractLabValues(rawText: string): Promise<ExtractionResult> {
-  if (!aiEnabled()) {
-    return {
-      reportDate: MOCK_REPORT_DATE,
-      reportLabel: MOCK_REPORT_LABEL,
-      values: MOCK_RAW_VALUES,
-      extractionConfidence: "high",
-      unrecognizedText: [],
-    };
+Extract every distinct test result you can find with:
+- test name
+- value exactly as printed
+- unit exactly as printed
+- reference range exactly as printed
+- section/category where the value appeared
+
+IMPORTANT RULES:
+
+1. Transcribe values exactly from the supplied report text.
+2. Do not calculate, normalize, convert, or infer values.
+3. Do not invent missing values.
+4. Do not include patient identifying information such as name, ID, address, phone number, or email.
+5. Extract only laboratory test results.
+6. Preserve the printed reference range.
+7. If the report date is present, extract it exactly as printed.
+8. If the report label/panel name is present, extract it.
+9. If a value cannot be confidently parsed, mention it in unrecognizedText.
+10. If there are no recognizable laboratory values, return an empty values array.
+11. Return ONLY valid JSON. Do not use markdown fences.
+12. Do not add explanations before or after the JSON.
+
+Return exactly this JSON structure:
+
+{
+  "reportDate": "",
+  "reportLabel": "",
+  "values": [
+    {
+      "name": "",
+      "rawValue": "",
+      "unit": "",
+      "refRangeRaw": "",
+      "category": ""
+    }
+  ],
+  "extractionConfidence": "high",
+  "unrecognizedText": []
+}
+
+extractionConfidence must be one of:
+"high", "partial", "low"
+`;
+
+function emptyResult(): ExtractionResult {
+  return {
+    reportDate: "",
+    reportLabel: "",
+    values: [],
+    extractionConfidence: "low",
+    unrecognizedText: [],
+  };
+}
+
+function extractJson(text: string): string {
+  const trimmed = text.trim();
+
+  if (trimmed.startsWith("```")) {
+    return trimmed
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
   }
 
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1);
+  }
+
+  return trimmed;
+}
+
+function validateExtraction(value: unknown): ExtractionResult {
+  if (!value || typeof value !== "object") {
+    return emptyResult();
+  }
+
+  const data = value as Record<string, unknown>;
+
+  const confidence =
+    data.extractionConfidence === "high" ||
+    data.extractionConfidence === "partial" ||
+    data.extractionConfidence === "low"
+      ? data.extractionConfidence
+      : "low";
+
+  const values = Array.isArray(data.values)
+    ? data.values
+        .filter(
+          (item): item is Record<string, unknown> =>
+            !!item && typeof item === "object",
+        )
+        .map((item) => ({
+          name: String(item.name ?? "").trim(),
+          rawValue: String(item.rawValue ?? "").trim(),
+          unit: String(item.unit ?? "").trim(),
+          refRangeRaw: String(item.refRangeRaw ?? "").trim(),
+          category: String(item.category ?? "").trim(),
+        }))
+        .filter(
+          (item) =>
+            item.name &&
+            item.rawValue &&
+            item.unit !== undefined &&
+            item.refRangeRaw !== undefined,
+        )
+    : [];
+
+  const unrecognizedText = Array.isArray(data.unrecognizedText)
+    ? data.unrecognizedText
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
+  return {
+    reportDate: String(data.reportDate ?? "").trim(),
+    reportLabel: String(data.reportLabel ?? "").trim(),
+    values,
+    extractionConfidence: confidence,
+    unrecognizedText,
+  };
+}
+
+export async function extractLabValues(
+  rawText: string,
+): Promise<ExtractionResult> {
   if (!rawText.trim()) {
-    return { reportDate: "", reportLabel: "", values: [], extractionConfidence: "low", unrecognizedText: [] };
+    return emptyResult();
   }
 
-  const client = getClaudeClient();
-  const message = await client.messages.create({
-    model: config.claudeModel,
-    max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: rawText.slice(0, 60_000) }],
-    tools: [EXTRACT_TOOL],
-    tool_choice: { type: "tool", name: EXTRACT_TOOL.name },
+  if (!config.lovableAiSharedSecret) {
+    throw new Error(
+      "AI extraction is not configured. Set RAILWAY_AI_SHARED_SECRET.",
+    );
+  }
+
+  const prompt = `
+${SYSTEM_PROMPT}
+
+RAW LAB REPORT TEXT
+===================
+
+${rawText.slice(0, 60_000)}
+
+===================
+
+Extract the laboratory values from the raw text above.
+
+Return ONLY the JSON object.
+`;
+
+  const response = await fetch(config.lovableAiUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.lovableAiSharedSecret}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      prompt,
+    }),
   });
 
-  const toolUse = message.content.find((block) => block.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    return { reportDate: "", reportLabel: "", values: [], extractionConfidence: "low", unrecognizedText: [] };
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    throw new Error(
+      `Lovable AI extraction failed (${response.status}): ${errorText}`,
+    );
   }
 
-  return toolUse.input as ExtractionResult;
+  const data = (await response.json()) as {
+    text?: string;
+    model?: string;
+    error?: {
+      message?: string;
+    };
+  };
+
+  if (data.error?.message) {
+    throw new Error(`Lovable AI extraction error: ${data.error.message}`);
+  }
+
+  if (!data.text?.trim()) {
+    throw new Error("Lovable AI returned an empty extraction response.");
+  }
+
+  try {
+    const jsonText = extractJson(data.text);
+    const parsed = JSON.parse(jsonText);
+
+    return validateExtraction(parsed);
+  } catch (error) {
+    console.error("Invalid JSON returned by Lovable AI extraction:", data.text);
+
+    throw new Error(
+      `Lovable AI returned invalid extraction JSON: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+  }
 }
