@@ -107,17 +107,17 @@ LABORATORY VALUES
 =================
 
 ${JSON.stringify(
-  values.map((v) => ({
-    key: v.key,
-    name: v.name,
-    value: v.value,
-    unit: v.unit,
-    status: v.status,
-    ref: v.ref,
-  })),
-  null,
-  2,
-)}
+    values.map((v) => ({
+      key: v.key,
+      name: v.name,
+      value: v.value,
+      unit: v.unit,
+      status: v.status,
+      ref: v.ref,
+    })),
+    null,
+    2,
+  )}
 
 Return ONLY the JSON object.
 `;
@@ -181,8 +181,7 @@ Return ONLY the JSON object.
     }
   } catch (error) {
     throw new Error(
-      `Lovable AI returned invalid explanation JSON: ${
-        error instanceof Error ? error.message : "unknown error"
+      `Lovable AI returned invalid explanation JSON: ${error instanceof Error ? error.message : "unknown error"
       }`,
     );
   }
