@@ -151,7 +151,7 @@ export function startSessionSweeper() {
     void sweepIdleSessions().catch((error) => {
       console.error("Failed to sweep idle sessions:", error);
     });
-  }, 60_000);
+  }, 5 * 60_000);
 
   sweepTimer.unref?.();
 }

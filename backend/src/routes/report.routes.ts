@@ -108,16 +108,19 @@ async function handleUpload(req: Request, res: Response, files: Express.Multer.F
   });
 }
 
-reportRouter.get("/pdf", requireAuth, async (req, res) => {
+reportRouter.get("/current", requireAuth, async (req, res) => {
   const report = await getReport(req.auth!.sessionId);
-  if (!report) return res.status(404).json({ message: "No report in this session." });
 
-  try {
-    const pdf = await generateReportPdf(report);
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${report.meta.label.replace(/\s+/g, "-")}.pdf"`);
-    res.send(pdf);
-  } catch (err) {
-    res.status(500).json({ message: err instanceof Error ? err.message : "Couldn't generate the PDF." });
+  if (!report) {
+    return res.status(404).json({
+      message: "No report in this session.",
+    });
   }
+
+  return res.json({
+    status: "ready",
+    meta: report.meta,
+    values: report.values,
+    walkthroughKeys: report.walkthroughKeys,
+  });
 });
