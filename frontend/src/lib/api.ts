@@ -1,9 +1,7 @@
 import type { ChatMessage, LabValue, ReportMeta } from "../types/value";
 import { MOCK_REPORT_META, MOCK_VALUES, WALKTHROUGH_KEYS } from "./mockData";
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? window.location.origin
-).replace(/\/$/, "");
+const API_BASE_URL = window.location.origin;
 
 function apiUrl(path: string): string {
   return `${API_BASE_URL}/api${path}`;

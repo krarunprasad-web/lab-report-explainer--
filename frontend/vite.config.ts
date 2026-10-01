@@ -14,7 +14,13 @@ export default defineConfig({
     },
   },
 
-  preview: {
-    allowedHosts: ["lab-report-explainer-production.up.railway.app"],
+preview: {
+  allowedHosts: ["lab-report-explainer-production.up.railway.app"],
+  proxy: {
+    "/api": {
+      target: "https://lab-report-backend-production.up.railway.app",
+      changeOrigin: true,
+    },
   },
+},
 });
