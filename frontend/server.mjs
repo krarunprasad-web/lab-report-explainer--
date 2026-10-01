@@ -20,9 +20,17 @@ app.use(
 
 app.use(express.static(path.join(__dirname, "dist")));
 
-app.use((_req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
+app.use(
+  "/api",
+  createProxyMiddleware({
+    target: "https://lab-report-backend-production.up.railway.app",
+    changeOrigin: true,
+    secure: true,
+    pathRewrite: {
+      "^/": "/api/",
+    },
+  })
+);
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`Frontend server listening on 0.0.0.0:${port}`);
