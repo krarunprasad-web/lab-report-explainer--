@@ -1,5 +1,4 @@
 import type { ChatMessage, LabValue, ReportMeta } from "../types/value";
-import { MOCK_REPORT_META, MOCK_VALUES, WALKTHROUGH_KEYS } from "./mockData";
 
 const API_BASE_URL = window.location.origin;
 
@@ -7,14 +6,10 @@ function apiUrl(path: string): string {
   return `${API_BASE_URL}/api${path}`;
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /**
  * Calls the real backend.
  *
- * Authentication and AI operations must never fall back to fake success.
+ * Authentication and AI operations never fall back to fake success.
  */
 async function tryFetch<T>(
   path: string,
@@ -128,8 +123,6 @@ export async function verifyOtp(
 ): Promise<{ ok: boolean; message?: string }> {
   const normalizedCode = code.trim();
 
-  // Format validation only.
-  // The backend decides whether the OTP is actually correct.
   if (!/^\d{6}$/.test(normalizedCode)) {
     return {
       ok: false,
@@ -193,40 +186,58 @@ export interface UploadResult {
 export async function uploadReport(
   files: File[],
 ): Promise<UploadResult> {
+  const form = new FormData();
+
+  for (const file of files) {
+    form.append("files", file);
+  }
+
   try {
-    const form = new FormData();
+    /**
+     * No artificial timeout here.
+     *
+     * PDF extraction + AI extraction + AI explanations can legitimately
+     * take longer than 30 seconds.
+     */
+    const res = await fetch(apiUrl("/reports/upload"), {
+      method: "POST",
+      body: form,
+      credentials: "include",
+    });
 
-    for (const file of files) {
-      form.append("files", file);
-    }
-
-    const controller = new AbortController();
-
-    const timer = setTimeout(() => {
-      controller.abort();
-    }, 30000);
+    let data: UploadResult;
 
     try {
-      const res = await fetch(apiUrl("/reports/upload"), {
-        method: "POST",
-        body: form,
-        credentials: "include",
-        signal: controller.signal,
-      });
-
-      return (await res.json()) as UploadResult;
-    } finally {
-      clearTimeout(timer);
+      data = (await res.json()) as UploadResult;
+    } catch {
+      return {
+        status: "error",
+        message: `Upload failed with HTTP ${res.status}.`,
+      };
     }
-  } catch {
-    // Demo fallback is allowed for report upload.
-    await delay(2200);
+
+    /**
+     * Never convert a failed backend request into fake report data.
+     */
+    if (!res.ok) {
+      return {
+        status: "error",
+        message:
+          data.message ||
+          `Upload failed with HTTP ${res.status}.`,
+      };
+    }
+
+    return data;
+  } catch (error) {
+    console.error("REPORT UPLOAD FAILED:", error);
 
     return {
-      status: "ready",
-      meta: MOCK_REPORT_META,
-      values: MOCK_VALUES,
-      walkthroughKeys: WALKTHROUGH_KEYS,
+      status: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to upload the report. Please try again.",
     };
   }
 }
@@ -265,8 +276,6 @@ export async function sendChatMessage(
 
     return "I couldn't get a response from the assistant. Please try again.";
   } catch {
-    // IMPORTANT:
-    // Never return a hardcoded medical answer here.
     return "The assistant is temporarily unavailable. Please try again.";
   }
 }
@@ -288,8 +297,7 @@ export async function submitRating(
       }),
     });
   } catch {
-    await delay(300);
-    return { ok: true };
+    return { ok: false };
   }
 }
 
