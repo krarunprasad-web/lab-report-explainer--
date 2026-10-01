@@ -34,11 +34,26 @@ reportRouter.post("/upload", requireAuth, upload.array("files", 12), async (req,
   // per-file try/catch in normalizeUpload) is caught here and reported in
   // the same {status, message} shape the frontend already handles, instead
   // of hanging the Analysing screen forever.
+  // try {
+  //   await handleUpload(req, res, files);
+  // } catch (err) {
+  //   res.status(500).json({ status: "error", message: err instanceof Error ? err.message : "Something went wrong reading that report." });
+  // }
+
   try {
-    await handleUpload(req, res, files);
-  } catch (err) {
-    res.status(500).json({ status: "error", message: err instanceof Error ? err.message : "Something went wrong reading that report." });
-  }
+  await handleUpload(req, res, files);
+} catch (err) {
+  console.error("UPLOAD FAILED:", err);
+
+  res.status(500).json({
+    status: "error",
+    message:
+      err instanceof Error
+        ? err.message
+        : "Something went wrong reading that report.",
+  });
+}
+
 });
 
 async function handleUpload(req: Request, res: Response, files: Express.Multer.File[]) {
