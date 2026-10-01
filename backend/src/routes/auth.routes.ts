@@ -12,7 +12,13 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 export const authRouter = Router();
 
 const PENDING_COOKIE = "pending_user";
-const cookieOpts = { httpOnly: true, sameSite: "lax" as const, secure: config.nodeEnv === "production" };
+
+const cookieOpts = {
+  httpOnly: true,
+  sameSite: "none" as const,
+  secure: config.nodeEnv === "production",
+  path: "/",
+};
 
 function setPendingCookie(res: import("express").Response, userId: string) {
   res.cookie(PENDING_COOKIE, userId, { ...cookieOpts, maxAge: 15 * 60 * 1000 });
