@@ -23,12 +23,9 @@ app.use(express.static(path.join(__dirname, "dist")));
 app.use(
   "/api",
   createProxyMiddleware({
-    target: "https://lab-report-backend-production.up.railway.app",
+    target: "https://lab-report-backend-production.up.railway.app/api",
     changeOrigin: true,
     secure: true,
-    pathRewrite: {
-      "^/": "/api/",
-    },
   })
 );
 
